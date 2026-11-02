@@ -57,10 +57,11 @@ async def register(payload: RegisterRequest, response: Response, session: Sessio
     user = User(email=email, password_hash=hash_password(payload.password))
     session.add(user)
     await session.flush()
+    access_token = create_access_token(user.id)
     refresh_token = await create_refresh_token(session, user)
     await session.commit()
     set_refresh_cookie(response, refresh_token)
-    return TokenResponse(access_token=create_access_token(user.id))
+    return TokenResponse(access_token=access_token)
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -70,10 +71,11 @@ async def login(payload: LoginRequest, response: Response, session: SessionDepen
     if user is None or not verify_password(payload.password, user.password_hash):
         raise credentials_error()
 
+    access_token = create_access_token(user.id)
     refresh_token = await create_refresh_token(session, user)
     await session.commit()
     set_refresh_cookie(response, refresh_token)
-    return TokenResponse(access_token=create_access_token(user.id))
+    return TokenResponse(access_token=access_token)
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -90,9 +92,10 @@ async def refresh(
         raise credentials_error()
 
     user, replacement_token = refreshed
+    access_token = create_access_token(user.id)
     await session.commit()
     set_refresh_cookie(response, replacement_token)
-    return TokenResponse(access_token=create_access_token(user.id))
+    return TokenResponse(access_token=access_token)
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
