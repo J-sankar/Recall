@@ -248,6 +248,13 @@ update). Avoid having the index silently become stale.
 
 Keep the interface simple and retrieval-oriented.
 
+The approved visual direction uses graphite and silver with electric amber
+actions in dark mode, and porcelain and ink with bronze accents in light
+mode. The interface uses a sidebar shell, SVG branding and illustrations,
+Lucide icons (no emojis), Space Grotesk headings, and Inter body text.
+Theme and resource grid/list preferences are stored locally. Motion should
+remain restrained and respect reduced-motion preferences.
+
 Suggested primary navigation:
 
 -   Home
