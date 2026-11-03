@@ -4,7 +4,16 @@
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>recall-frontend</title>
+    <meta name="description" content="Your personal knowledge space. Capture useful links, notes, and code snippets with Recall." />
+    <title>Recall — Your knowledge, connected</title>
+    <script>
+      try {
+        const theme = localStorage.getItem('recall-theme');
+        document.documentElement.classList.toggle('dark', theme === 'dark' || (theme !== 'light' && matchMedia('(prefers-color-scheme: dark)').matches));
+      } catch {
+        document.documentElement.classList.toggle('dark', matchMedia('(prefers-color-scheme: dark)').matches);
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>

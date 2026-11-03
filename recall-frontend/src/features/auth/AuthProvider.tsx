@@ -36,6 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     () => ({
       isRestoringSession,
       isAuthenticated: Boolean(accessToken) && !sessionQuery.isError,
+      accessToken,
       user: sessionQuery.data,
       login: (credentials) => authenticate(authApi.login, credentials),
       register: (credentials) => authenticate(authApi.register, credentials),

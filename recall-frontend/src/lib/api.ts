@@ -2,6 +2,16 @@ const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost
 
 export const apiBaseUrl = configuredBaseUrl.replace(/\/$/, '')
 
+export class ApiError extends Error {
+  readonly status: number
+
+  constructor(status: number) {
+    super(`API request failed with status ${status}`)
+    this.name = 'ApiError'
+    this.status = status
+  }
+}
+
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(`${apiBaseUrl}${path}`, {
     ...init,
@@ -9,7 +19,7 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     headers: { Accept: 'application/json', ...init?.headers },
   })
 
-  if (!response.ok) throw new Error(`API request failed with status ${response.status}`)
+  if (!response.ok) throw new ApiError(response.status)
   return response
 }
 

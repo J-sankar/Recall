@@ -6,6 +6,7 @@ type Credentials = { email: string; password: string }
 export type AuthContextValue = {
   isRestoringSession: boolean
   isAuthenticated: boolean
+  accessToken: string | undefined
   user: AuthUser | undefined
   login: (credentials: Credentials) => Promise<void>
   register: (credentials: Credentials) => Promise<void>
