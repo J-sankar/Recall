@@ -1,3 +1,4 @@
+import logging
 from functools import lru_cache
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -18,6 +19,7 @@ class Settings(BaseSettings):
     refresh_cookie_name: str = "recall_refresh_token"
     cookie_secure: bool = True
     cookie_samesite: str = "lax"
+    log_level: str = "INFO"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
@@ -31,6 +33,14 @@ class Settings(BaseSettings):
             if normalized in {"production", "prod", "release"}:
                 return False
         return value
+
+    @field_validator("log_level")
+    @classmethod
+    def validate_log_level(cls, value: str) -> str:
+        normalized = value.upper()
+        if normalized not in logging.getLevelNamesMapping():
+            raise ValueError("LOG_LEVEL must be a standard Python logging level.")
+        return normalized
 
     def async_database_url(self) -> str:
         if not self.database_url:

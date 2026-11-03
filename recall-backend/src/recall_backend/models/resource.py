@@ -60,7 +60,13 @@ class Resource(UUIDPrimaryKeyMixin, TimestampMixin, Base):
     title: Mapped[str] = mapped_column(String(300), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     type: Mapped[ResourceType] = mapped_column(
-        Enum(ResourceType, name="resource_type", native_enum=False), nullable=False
+        Enum(
+            ResourceType,
+            name="resource_type",
+            native_enum=False,
+            values_callable=lambda resource_types: [resource_type.value for resource_type in resource_types],
+        ),
+        nullable=False,
     )
     url: Mapped[str | None] = mapped_column(String(2048), nullable=True)
     content: Mapped[str | None] = mapped_column(Text, nullable=True)

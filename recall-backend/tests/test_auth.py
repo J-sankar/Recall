@@ -77,3 +77,21 @@ def test_duplicate_registration_and_invalid_login_are_rejected(client: TestClien
 def test_current_user_rejects_missing_or_invalid_access_token(client: TestClient) -> None:
     assert client.get("/api/auth/me").status_code == 401
     assert client.get("/api/auth/me", headers={"Authorization": "Bearer invalid"}).status_code == 401
+
+
+def test_authenticated_user_can_create_an_inbox_note(client: TestClient) -> None:
+    registered = client.post(
+        "/api/auth/register",
+        json={"email": "person@example.com", "password": "correct horse battery staple"},
+    )
+    access_token = registered.json()["access_token"]
+
+    response = client.post(
+        "/api/resources/",
+        headers={"Authorization": f"Bearer {access_token}"},
+        json={"type": "note", "title": "A useful note", "content": "Remember this."},
+    )
+
+    assert response.status_code == 201
+    assert response.json()["collection_id"] is None
+    assert response.json()["is_archived"] is False
