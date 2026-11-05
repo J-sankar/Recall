@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     cookie_secure: bool = True
     cookie_samesite: str = "lax"
     log_level: str = "INFO"
+    worker_url : str
+    recall_worker_secret:str
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

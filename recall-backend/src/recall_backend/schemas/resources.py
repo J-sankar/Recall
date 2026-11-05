@@ -72,3 +72,30 @@ class ResourceResponse(ResourceCreationResponse):
 
 class ResourceGroup(BaseModel):
     resources: list[ResourceSummary]
+
+
+
+class ResourceUpdateRequest(BaseModel):
+    """Partial update: only the fields sent are changed."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    title: str | None = Field(default=None, min_length=1, max_length=300)
+    description: str | None = None
+    content: str | None = None
+    url: HttpUrl | None = None
+    collection_id: UUID | None = None
+    is_favorite: bool | None = None
+    is_archived: bool | None = None
+
+    @model_validator(mode="after")
+    def validate_update(self) -> "ResourceUpdateRequest":
+        if not self.model_fields_set:
+            raise ValueError("At least one field must be provided.")
+
+        # These columns are NOT NULL, so an explicit null makes no sense.
+        for field in ("title", "is_favorite", "is_archived"):
+            if field in self.model_fields_set and getattr(self, field) is None:
+                raise ValueError(f"{field} cannot be null.")
+
+        return self
