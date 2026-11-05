@@ -1,12 +1,15 @@
-import { useQuery } from '@tanstack/react-query'
-import { ArrowLeft, Braces, CalendarDays, Check, Copy, ExternalLink, FileText, Globe, Inbox, RefreshCw } from 'lucide-react'
+import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query'
+import { ArrowLeft, Archive, Braces, CalendarDays, Check, Copy, ExternalLink, FileText, Globe, Inbox, Pencil, RefreshCw, Star } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Skeleton } from '../../components/ui/Skeleton'
 import { ApiError } from '../../lib/api'
 import { useAuth } from '../auth/useAuth'
-import { getResource, type Resource } from './api'
+import { getResource, updateResource, type Resource } from './api'
 import { resourceTypeStyles } from './resourceTypes'
+import { ResourceEditForm } from './ResourceEditForm'
+import { ResourceDeleteButton } from './ResourceDeleteButton'
+
 
 function formatDate(value: string) {
   return new Date(value).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
@@ -99,7 +102,17 @@ export function ResourceDetailPage() {
     enabled: Boolean(resourceId && accessToken),
     retry: (count, error) => !(error instanceof ApiError && error.status < 500) && count < 1,
   })
+  const queryClient = useQueryClient()
+  const [editing, setEditing] = useState(false)
 
+  const flagMutation = useMutation({
+    mutationFn: (changes: { is_favorite?: boolean; is_archived?: boolean }) =>
+      updateResource(accessToken!, resourceId!, changes),
+    onSuccess: (updated) => {
+      queryClient.setQueryData(['resources', accessToken, 'detail', resourceId], updated)
+      void queryClient.invalidateQueries({ queryKey: ['resources'] })
+    },
+  })
   if (query.isPending) {
     return <div className="glass mx-auto max-w-5xl space-y-5 p-5" role="status"><span className="sr-only">Loading resource…</span><Skeleton className="h-5 w-28" /><Skeleton className="h-10 w-3/4" /><Skeleton className="h-4 w-1/2" /><Skeleton className="h-48 w-full" /></div>
   }
@@ -111,11 +124,11 @@ export function ResourceDetailPage() {
         <h1 className="text-xl font-semibold">{notFound ? 'Resource not found' : 'Unable to load this resource'}</h1>
         <p className="mt-3 text-sm leading-6 text-muted">{notFound ? 'It may have been deleted, or this link is incorrect.' : 'Check your connection and try again. If your session expired, sign in again.'}</p>
         <div className="mt-6 flex flex-wrap gap-3">
-        <Link className="btn-secondary" to="/resources">
-          <ArrowLeft aria-hidden="true" size={14} />
-          Back to all resources
-        </Link>
-        {!notFound && <button className="btn-primary" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={14} aria-hidden="true" />Try again</button>}
+          <Link className="btn-secondary" to="/resources">
+            <ArrowLeft aria-hidden="true" size={14} />
+            Back to all resources
+          </Link>
+          {!notFound && <button className="btn-primary" disabled={query.isFetching} onClick={() => void query.refetch()}><RefreshCw size={14} aria-hidden="true" />Try again</button>}
         </div>
       </section>
     )
@@ -135,11 +148,56 @@ export function ResourceDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <span className="icon-tile"><Icon size={20} aria-hidden="true" /></span>
           <span className="eyebrow">{type.label}</span>
-          {!resource.collection_id && <span className="ml-auto flex items-center gap-1.5 text-[11px] text-muted"><Inbox size={13} aria-hidden="true" />Inbox</span>}
+          {!resource.collection_id && <span className="flex items-center gap-1.5 text-[11px] text-muted"><Inbox size={13} aria-hidden="true" />Inbox</span>}
+
+          {!editing && (
+            <div className="ml-auto flex items-center gap-2">
+              <button
+                aria-label={resource.is_favorite ? 'Remove from favorites' : 'Add to favorites'}
+                aria-pressed={resource.is_favorite}
+                className={`btn-secondary ${resource.is_favorite ? 'text-accent' : ''}`}
+                disabled={flagMutation.isPending}
+                onClick={() => flagMutation.mutate({ is_favorite: !resource.is_favorite })}
+                type="button"
+              >
+                <Star size={16} aria-hidden="true" fill={resource.is_favorite ? 'currentColor' : 'none'} />
+              </button>
+              <button
+                aria-label={resource.is_archived ? 'Unarchive' : 'Archive'}
+                aria-pressed={resource.is_archived}
+                className={`btn-secondary ${resource.is_archived ? 'text-accent' : ''}`}
+                disabled={flagMutation.isPending}
+                onClick={() => flagMutation.mutate({ is_archived: !resource.is_archived })}
+                type="button"
+              >
+                <Archive size={16} aria-hidden="true" />
+              </button>
+                            {/* ...favorite button, archive button... */}
+              <ResourceDeleteButton resource={resource} />
+              <button className="btn-primary" onClick={() => setEditing(true)} type="button">
+                <Pencil size={14} aria-hidden="true" />Edit
+              </button>
+            </div>
+          )}
         </div>
-        <h1 className="page-title mt-4 [overflow-wrap:anywhere]">{resource.title}</h1>
-        {resource.description && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted [overflow-wrap:anywhere]">{resource.description}</p>}
-        <ResourceBody resource={resource} />
+
+        {flagMutation.isError && <p className="error-panel mt-3" role="alert">Unable to update this resource. Please try again.</p>}
+
+        {editing ? (
+          <ResourceEditForm
+            key={resource.updated_at}
+            resource={resource}
+            onCancel={() => setEditing(false)}
+            onSaved={() => setEditing(false)}
+          />
+        ) : (
+          <>
+            <h1 className="page-title mt-4 [overflow-wrap:anywhere]">{resource.title}</h1>
+            {resource.description && <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-muted [overflow-wrap:anywhere]">{resource.description}</p>}
+            <ResourceBody resource={resource} />
+          </>
+        )}
+
         <div className="mt-5 flex flex-wrap gap-x-6 gap-y-3 border-t border-line pt-4 text-[10px] text-muted">
           <span className="flex items-center gap-2"><CalendarDays size={13} aria-hidden="true" />Captured <time dateTime={resource.created_at}>{formatDate(resource.created_at)}</time></span>
           <span>Updated <time dateTime={resource.updated_at}>{formatDate(resource.updated_at)}</time></span>

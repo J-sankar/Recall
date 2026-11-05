@@ -1,4 +1,4 @@
-import { apiJson } from '../../lib/api'
+import { apiFetch,apiJson } from '../../lib/api'
 
 export type ResourceType = 'link' | 'note' | 'snippet'
 
@@ -69,5 +69,59 @@ export function createResource(accessToken: string, resource: CreateResourceInpu
       'Content-Type': 'application/json',
     },
     body: JSON.stringify(resource),
+  })
+}
+
+
+export type UpdateResourceInput = {
+  title?: string
+  description?: string | null
+  content?: string | null
+  url?: string | null
+  collection_id?: string | null
+  is_favorite?: boolean
+  is_archived?: boolean
+}
+
+export function updateResource(accessToken: string, resourceId: string, changes: UpdateResourceInput): Promise<Resource> {
+  return apiJson<Resource>(`/resources/${resourceId}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(changes),
+  })
+}
+
+export async function deleteResource(accessToken: string, resourceId: string): Promise<void> {
+  // 204 has no body, so use apiFetch (apiJson would fail on response.json()).
+  await apiFetch(`/resources/${resourceId}`, {
+    method: 'DELETE',
+    headers: { Authorization: `Bearer ${accessToken}` },
+  })
+}
+
+
+export type LinkPreview = {
+  title: string | null
+  description: string | null
+  image: string | null
+  favicon: string | null
+  site_name: string | null
+  final_url: string
+}
+
+export function getLinkPreview(
+  accessToken: string,
+  url: string,
+): Promise<LinkPreview> {
+  return apiJson<LinkPreview>('/link-previews/', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ url }),
   })
 }

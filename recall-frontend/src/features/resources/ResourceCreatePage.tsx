@@ -1,14 +1,18 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { ArrowLeft, ArrowRight, Check, Inbox, LoaderCircle, Plus } from 'lucide-react'
-import { type FormEvent, useState } from 'react'
+import { type FormEvent, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useAuth } from '../auth/useAuth'
-import { createResource, type CreateResourceInput, type ResourceType } from './api'
+import { createResource, getLinkPreview, type CreateResourceInput, type ResourceType } from './api'
 import { resourceTypeStyles } from './resourceTypes'
 
 const resourceTypes: ResourceType[] = ['note', 'link', 'snippet']
 
+
+
 export function ResourceCreatePage() {
+
+
   const { accessToken } = useAuth()
   const queryClient = useQueryClient()
   const [type, setType] = useState<ResourceType>('note')
@@ -17,6 +21,12 @@ export function ResourceCreatePage() {
   const [content, setContent] = useState('')
   const [url, setUrl] = useState('')
   const [validationError, setValidationError] = useState('')
+  const [isPreviewLoading, setIsPreviewLoading] = useState(false)
+  const [previewError, setPreviewError] = useState('')
+
+  const titleManuallyEdited = useRef(false)
+  const descriptionManuallyEdited = useRef(false)
+  const previewRequestId = useRef(0)
   const mutation = useMutation({
     mutationFn: (resource: CreateResourceInput) => createResource(accessToken!, resource),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['resources'] }),
@@ -34,9 +44,54 @@ export function ResourceCreatePage() {
   }
 
   function reset() {
-    setTitle(''); setDescription(''); setContent(''); setUrl('')
+    previewRequestId.current++
+
+    setTitle('')
+    setDescription('')
+    setContent('')
+    setUrl('')
     setValidationError('')
+    setPreviewError('')
+    setIsPreviewLoading(false)
+
+    titleManuallyEdited.current = false
+    descriptionManuallyEdited.current = false
+
     mutation.reset()
+  }
+
+  async function fetchPreview() {
+    const currentUrl = url.trim()
+
+    if (!currentUrl || !accessToken) return
+
+    const requestId = ++previewRequestId.current
+
+    setIsPreviewLoading(true)
+    setPreviewError('')
+
+    try {
+      const preview = await getLinkPreview(accessToken, currentUrl)
+
+      // Ignore stale responses.
+      if (requestId !== previewRequestId.current) return
+
+      if (!titleManuallyEdited.current && preview.title) {
+        setTitle(preview.title)
+      }
+
+      if (!descriptionManuallyEdited.current && preview.description) {
+        setDescription(preview.description)
+      }
+    } catch {
+      if (requestId === previewRequestId.current) {
+        setPreviewError('Could not fetch link details. You can enter them manually.')
+      }
+    } finally {
+      if (requestId === previewRequestId.current) {
+        setIsPreviewLoading(false)
+      }
+    }
   }
 
   if (mutation.isSuccess) {
@@ -67,20 +122,52 @@ export function ResourceCreatePage() {
           <div className="grid grid-cols-3 gap-2 sm:gap-3">
             {resourceTypes.map((value) => {
               const { icon: Icon, label, description: hint } = resourceTypeStyles[value]
-              return <button aria-pressed={type === value} className={`flex flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left transition sm:flex-row sm:items-center sm:gap-3 sm:p-3 ${type === value ? 'border-accent bg-accent-soft text-accent' : 'border-line text-muted hover:border-accent'}`} key={value} onClick={() => { setType(value); setValidationError('') }} type="button"><Icon size={18} aria-hidden="true" /><span><span className="block text-sm font-medium">{label}</span><span className="mt-0.5 hidden text-[10px] leading-4 text-muted sm:block">{hint}</span></span></button>
+              return <button aria-pressed={type === value} className={`flex flex-col items-start gap-1.5 rounded-lg border p-2.5 text-left transition sm:flex-row sm:items-center sm:gap-3 sm:p-3 ${type === value ? 'border-accent bg-accent-soft text-accent' : 'border-line text-muted hover:border-accent'}`} key={value} onClick={() => {
+                previewRequestId.current++
+                setIsPreviewLoading(false)
+                setPreviewError('')
+                setType(value)
+                setValidationError('')
+              }} type="button"><Icon size={18} aria-hidden="true" /><span><span className="block text-sm font-medium">{label}</span><span className="mt-0.5 hidden text-[10px] leading-4 text-muted sm:block">{hint}</span></span></button>
             })}
           </div>
           <div className="grid gap-5 md:grid-cols-[minmax(0,1fr)_minmax(0,1.3fr)]">
             <div className="space-y-4">
-              <label className="field-label">Title<input className="field" maxLength={300} onChange={(event) => setTitle(event.target.value)} placeholder={type === 'link' ? 'e.g. React documentation' : type === 'snippet' ? 'e.g. Database connection helper' : 'e.g. Architecture review notes'} required value={title} /></label>
+              <label className="field-label">Title<input className="field" maxLength={300} onChange={(event) => {
+                titleManuallyEdited.current = true
+                setTitle(event.target.value)
+              }} placeholder={type === 'link' ? 'e.g. React documentation' : type === 'snippet' ? 'e.g. Database connection helper' : 'e.g. Architecture review notes'} required value={title} /></label>
               {type === 'link' ? (
-                <label className="field-label">URL<input className="field" onChange={(event) => setUrl(event.target.value)} placeholder="https://example.com" required type="url" pattern="https?://.*" title="Enter a URL starting with https:// or http://" value={url} /></label>
+                <label className="field-label">URL<input className="field" onChange={(event) => {
+                  previewRequestId.current++
+                  setIsPreviewLoading(false)
+                  setPreviewError('')
+                  setUrl(event.target.value)
+                }}
+                  onBlur={fetchPreview} placeholder="https://example.com" required type="url" pattern="https?://.*" title="Enter a URL starting with https:// or http://" value={url} />{isPreviewLoading && (
+                    <span className="mt-2 flex items-center gap-2 text-xs text-muted">
+                      <LoaderCircle size={14} className="animate-spin" />
+                      Fetching link details…
+                    </span>
+                  )}
+
+                  {previewError && (
+                    <span className="mt-2 block text-xs text-muted" role="status">
+                      {previewError}
+                    </span>
+                  )}</label>
               ) : (
-                <label className="field-label">Description <span className="font-normal text-muted">(optional)</span><textarea className="field resize-y" onChange={(event) => setDescription(event.target.value)} placeholder="Add a short summary or context" rows={4} value={description} /></label>
+                <label className="field-label">Description <span className="font-normal text-muted">(optional)</span><textarea className="field resize-y" onChange={(event) => {
+                  descriptionManuallyEdited.current = true
+                  setDescription(event.target.value)
+                }} placeholder="Add a short summary or context" rows={4} value={description} /></label>
               )}
             </div>
             {type === 'link' ? (
-              <label className="field-label">Description <span className="font-normal text-muted">(optional)</span><textarea className="field resize-y" onChange={(event) => setDescription(event.target.value)} placeholder="Add a short summary or context" rows={5} value={description} /></label>
+              <label className="field-label">Description <span className="font-normal text-muted">(optional)</span><textarea className="field resize-y" onChange={(event) => {
+                descriptionManuallyEdited.current = true
+                setDescription(event.target.value)
+              }} placeholder="Add a short summary or context" rows={5} value={description} /></label>
             ) : (
               <label className="field-label">{type === 'snippet' ? 'Code or command' : 'Note content'}<textarea className={`field resize-y leading-7 ${type === 'snippet' ? 'font-mono text-sm' : ''}`} spellCheck={type !== 'snippet'} onChange={(event) => setContent(event.target.value)} placeholder={type === 'snippet' ? '// Paste your code here' : 'Write your note…'} required rows={8} value={content} /></label>
             )}
