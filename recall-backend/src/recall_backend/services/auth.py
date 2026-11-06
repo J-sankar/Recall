@@ -7,7 +7,7 @@ import jwt
 from pwdlib import PasswordHash
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import joinedload
+from sqlalchemy.orm import selectinload
 
 from recall_backend.core.config import settings
 from recall_backend.models.refresh_token import RefreshToken
@@ -85,7 +85,7 @@ async def rotate_refresh_token(
 
     token = await session.scalar(
         select(RefreshToken)
-        .options(joinedload(RefreshToken.user))
+        .options(selectinload(RefreshToken.user))
         .where(
             RefreshToken.token_hash == hash_refresh_token(raw_token),
             RefreshToken.revoked_at.is_(None),
