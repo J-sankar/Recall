@@ -18,7 +18,7 @@ class Settings(BaseSettings):
     refresh_token_days: int = 30
     refresh_cookie_name: str = "recall_refresh_token"
     cookie_secure: bool = True
-    cookie_samesite: str = "lax"
+    cookie_samesite: str = "none"
     log_level: str = "INFO"
     worker_url : str
     recall_worker_secret:str

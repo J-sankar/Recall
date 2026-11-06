@@ -1,12 +1,40 @@
+
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { authApi } from './api'
-import { AuthContext, type AuthContextValue } from './authContext'
 
-export function AuthProvider({ children }: { children: React.ReactNode }) {
+import { authApi } from './api'
+import {
+  AuthContext,
+  type AuthContextValue,
+  type SessionRestoreError,
+} from './authContext'
+
+type Credentials = {
+  email: string
+  password: string
+}
+
+function isUnauthorizedError(error: unknown): boolean {
+  return (
+    typeof error === 'object' &&
+    error !== null &&
+    'status' in error &&
+    error.status === 401
+  )
+}
+
+export function AuthProvider({
+  children,
+}: {
+  children: React.ReactNode
+}) {
   const [accessToken, setAccessToken] = useState<string>()
   const [isRestoringSession, setIsRestoringSession] = useState(true)
+  const [sessionRestoreError, setSessionRestoreError] =
+    useState<SessionRestoreError>(null)
+
   const queryClient = useQueryClient()
+
   const sessionQuery = useQuery({
     queryKey: ['auth', 'session', accessToken],
     queryFn: () => authApi.me(accessToken!),
@@ -14,40 +42,108 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     retry: false,
   })
 
+  // Restore the session using the HTTP-only refresh cookie.
   useEffect(() => {
-    void authApi
-      .refresh()
-      .then((token) => setAccessToken(token.access_token))
-      .catch(() => setAccessToken(undefined))
-      .finally(() => setIsRestoringSession(false))
+    let cancelled = false
+
+    async function restoreSession() {
+      try {
+        const token = await authApi.refresh()
+
+        if (cancelled) return
+
+        setAccessToken(token.access_token)
+        setSessionRestoreError(null)
+      } catch (error) {
+        if (cancelled) return
+
+        setSessionRestoreError(
+          isUnauthorizedError(error) ? 'unauthorized' : 'unavailable',
+        )
+      } finally {
+        if (!cancelled) {
+          setIsRestoringSession(false)
+        }
+      }
+    }
+
+    void restoreSession()
+
+    return () => {
+      cancelled = true
+    }
   }, [])
 
-  const authenticate = useCallback(async (action: (credentials: { email: string; password: string }) => Promise<{ access_token: string }>, credentials: { email: string; password: string }) => {
-    const token = await action(credentials)
-    setAccessToken(token.access_token)
-    await queryClient.fetchQuery({
-      queryKey: ['auth', 'session', token.access_token],
-      queryFn: () => authApi.me(token.access_token),
-      staleTime: 0,
-    })
+  // Shared login and registration logic.
+  const authenticate = useCallback(
+    async (
+      action: (
+        credentials: Credentials,
+      ) => Promise<{ access_token: string }>,
+      credentials: Credentials,
+    ) => {
+      const token = await action(credentials)
+
+      setAccessToken(token.access_token)
+      setSessionRestoreError(null)
+
+      await queryClient.invalidateQueries({
+        queryKey: ['auth', 'session'],
+      })
+    },
+    [queryClient],
+  )
+
+  const login = useCallback(
+    (credentials: Credentials) =>
+      authenticate(authApi.login, credentials),
+    [authenticate],
+  )
+
+  const register = useCallback(
+    (credentials: Credentials) =>
+      authenticate(authApi.register, credentials),
+    [authenticate],
+  )
+
+  const logout = useCallback(async () => {
+    try {
+      await authApi.logout()
+    } finally {
+      setAccessToken(undefined)
+      setSessionRestoreError(null)
+
+      queryClient.removeQueries({
+        queryKey: ['auth'],
+      })
+    }
   }, [queryClient])
 
   const value = useMemo<AuthContextValue>(
     () => ({
       isRestoringSession,
-      isAuthenticated: Boolean(accessToken) && !sessionQuery.isError,
+      isAuthenticated: Boolean(accessToken),
+      sessionRestoreError,
       accessToken,
       user: sessionQuery.data,
-      login: (credentials) => authenticate(authApi.login, credentials),
-      register: (credentials) => authenticate(authApi.register, credentials),
-      logout: async () => {
-        await authApi.logout()
-        setAccessToken(undefined)
-        queryClient.removeQueries({ queryKey: ['auth'] })
-      },
+      login,
+      register,
+      logout,
     }),
-    [accessToken, authenticate, isRestoringSession, queryClient, sessionQuery.data, sessionQuery.isError],
+    [
+      accessToken,
+      isRestoringSession,
+      sessionRestoreError,
+      sessionQuery.data,
+      login,
+      register,
+      logout,
+    ],
   )
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  )
 }

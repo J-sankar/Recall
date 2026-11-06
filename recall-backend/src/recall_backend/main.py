@@ -18,6 +18,7 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+    print("Configured CORS origins:", repr(settings.cors_origins))
 
     @app.middleware("http")
     async def log_request(request, call_next):
