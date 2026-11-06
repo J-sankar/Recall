@@ -2,21 +2,29 @@ from time import perf_counter
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
 from recall_backend.api.router import api_router
 from recall_backend.core.config import settings
 from recall_backend.core.logging import configure_logging, logger
+from recall_backend.core.rate_limit import limiter
 
 
 def create_app() -> FastAPI:
     configure_logging(settings.log_level)
     app = FastAPI(title=settings.app_name, debug=settings.debug)
+    app.state.limiter = limiter
+    app.add_exception_handler(
+        RateLimitExceeded,
+        _rate_limit_exceeded_handler,
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
         allow_credentials=True,
         allow_methods=["*"],
-        allow_headers=["*"], 
+        allow_headers=["*"],
     )
 
     @app.middleware("http")

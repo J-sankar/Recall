@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from recall_backend.api.dependencies import get_current_user
 from recall_backend.core.config import settings
+from recall_backend.core.rate_limit import limiter
 from recall_backend.core.security import validate_request_origin
 from recall_backend.db.session import get_db_session
 from recall_backend.models.user import User
@@ -49,6 +50,7 @@ def credentials_error() -> HTTPException:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
+@limiter.limit("5/hour")
 async def register(request:Request, payload: RegisterRequest, response: Response, session: SessionDependency) -> TokenResponse:
     validate_request_origin(request)
     email = normalize_email(str(payload.email))
@@ -67,6 +69,7 @@ async def register(request:Request, payload: RegisterRequest, response: Response
 
 
 @router.post("/login", response_model=TokenResponse)
+@limiter.limit("5/minute")
 async def login(request:Request,payload: LoginRequest, response: Response, session: SessionDependency) -> TokenResponse:
     validate_request_origin(request)
     email = normalize_email(str(payload.email))
