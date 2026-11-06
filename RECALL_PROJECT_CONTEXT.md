@@ -92,15 +92,14 @@ changes them.
                                       creation
   -----------------------------------------------------------------------
 
-### Important status note about the stack
+### Current stack status
 
-The following is the proposed working stack from the discussion. The
-user has not yet explicitly confirmed every item in a final stack
-checklist. Treat it as the default plan, but ask before making a costly
-or difficult-to-reverse substitution.
+The working stack is now implemented as follows. Keep using the existing
+choices unless a change is required by the user or a demonstrated technical
+need.
 
 -   Frontend: React + TypeScript + Vite.
--   Styling: Tailwind CSS, shadcn/ui, Lucide icons.
+-   Styling: Tailwind CSS, shared local UI components, and Lucide icons.
 -   Client routing: React Router.
 -   Server-state/data fetching: TanStack Query.
 -   Backend: Python + FastAPI.
@@ -109,10 +108,11 @@ or difficult-to-reverse substitution.
 -   Migrations: Alembic.
 -   Database: PostgreSQL hosted on Neon, Singapore region.
 -   Search: PostgreSQL Full-Text Search.
--   Scheduling: APScheduler for simple scheduled jobs.
--   Authentication proposal: JWT access token and HTTP-only
-    refresh-token cookie; Argon2 password hashing.
--   Testing: Pytest for backend; Vitest for frontend.
+-   Authentication: JWT access token and rotating HTTP-only refresh-token
+    cookie; Argon2 password hashing.
+-   Link previews: a Cloudflare Worker called by the backend.
+-   Testing: Pytest for backend; frontend lint/build checks. Vitest is not
+    currently configured.
 
 Do not add Redis, Celery, Kafka, Elasticsearch, a vector database, or a
 separate search service for the MVP without a demonstrated need.
@@ -133,11 +133,13 @@ Build the following first:
 9.  Quick capture available throughout the application, not only on the
     dashboard.
 
-### Explicitly out of scope for the initial MVP
+### Current MVP gaps and later scope
 
 -   AI chat over saved content.
 -   Vector/semantic search.
--   Browser extension.
+-   A production-ready browser extension. The repository has an early
+    TypeScript capture scaffold, but it is not connected to authentication or
+    the API yet.
 -   Collaborative workspaces and sharing.
 -   Full webpage crawling and indexing.
 -   PDF/DOCX upload and text extraction.
@@ -145,7 +147,9 @@ Build the following first:
 -   Complex analytics.
 -   Microservices or distributed infrastructure.
 
-These may be considered after the MVP is usable.
+Collections, tags, search, and the remaining MVP dashboard workflows are
+still pending in the current implementation. The other items may be
+considered after the MVP is usable.
 
 ## 5. Resource model
 
@@ -248,7 +252,7 @@ update). Avoid having the index silently become stale.
 
 Keep the interface simple and retrieval-oriented.
 
-The approved visual direction uses graphite and silver with electric amber
+The implemented visual direction uses graphite and silver with electric amber
 actions in dark mode, and porcelain and ink with bronze accents in light
 mode. The interface uses a sidebar shell, SVG branding and illustrations,
 Lucide icons (no emojis), Space Grotesk headings, and Inter body text.
@@ -260,8 +264,8 @@ Suggested primary navigation:
 -   Home
 -   Inbox
 -   All resources
--   Collections
--   Tags
+-   Collections (planned)
+-   Tags (planned)
 -   Automations (later)
 -   Settings
 
@@ -270,8 +274,8 @@ pages. Quick capture should support the resource types in the MVP and
 avoid forcing a collection selection. If no collection is selected, the
 resource enters the Inbox.
 
-A global search shortcut (`Ctrl+K`) is desirable. Search and quick
-capture are separate actions.
+A global search shortcut (`Ctrl+K`) is planned. Search and quick capture are
+separate actions.
 
 Resource detail/edit views should expose title, description, content or
 URL, collection, tags, favorite/archive state, and timestamps where
@@ -293,6 +297,10 @@ Likely endpoint groups:
 -   `/tags`
 -   `/tags/{tag_id}`
 
+Currently implemented endpoint groups are `/auth/*`, `/resources/*`,
+`/link-previews`, and `/health`. Collections, tags, and search routes remain
+planned.
+
 Use Pydantic request/response schemas. Do not expose password hashes,
 refresh tokens, internal storage paths, or other sensitive
 implementation details.
@@ -302,7 +310,7 @@ layer. Never rely only on the frontend to hide another user's data.
 
 ## 10. Security and data integrity
 
--   Hash passwords with Argon2 (if the proposed auth stack is retained).
+-   Hash passwords with Argon2.
 -   Use secure cookie settings in production: `HttpOnly`, `Secure`, and
     an appropriate `SameSite` policy.
 -   Protect state-changing cookie-authenticated requests against CSRF as
@@ -319,39 +327,13 @@ layer. Never rely only on the frontend to hide another user's data.
 -   Do not log passwords, tokens, or sensitive user content
     unnecessarily.
 
-## 11. Repository structure (suggested)
+## 11. Repository structure
 
-``` text
-recall/
-├── frontend/
-│   ├── src/
-│   ├── public/
-│   ├── package.json
-│   └── ...
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── core/
-│   │   ├── models/
-│   │   ├── schemas/
-│   │   ├── services/
-│   │   └── main.py
-│   ├── migrations/
-│   ├── tests/
-│   ├── pyproject.toml
-│   └── ...
-├── docs/
-│   ├── PROJECT.md
-│   ├── DATABASE.md
-│   └── API.md
-├── AGENTS.md
-├── README.md
-└── .gitignore
-```
-
-This is a suggested structure, not a mandate. Inspect the existing
-repository before creating or moving files. Adapt to existing
-conventions where sensible.
+The repository currently contains `recall-frontend/` (React/Vite),
+`recall-backend/` (FastAPI, models, migrations, and tests), `extension/`
+(TypeScript browser-extension scaffold), `link-preview/` (Cloudflare Worker),
+and `docs/`. Inspect the existing repository before creating or moving files;
+adapt to its conventions.
 
 ## 12. Development workflow for AI agents
 
@@ -406,21 +388,21 @@ Before finishing a task, report:
 -   Add database constraints and indexes.
 -   Verify migrations against a local PostgreSQL database and Neon.
 
-### Milestone 2 --- Authentication and ownership
+### Milestone 2 --- Authentication and ownership (complete)
 
 -   Registration/login/logout.
 -   Password hashing and token/session handling.
 -   Authenticated-user dependency.
 -   Tests for cross-user data isolation.
 
-### Milestone 3 --- Resource management
+### Milestone 3 --- Resource management (in progress)
 
 -   Resource CRUD.
 -   Resource type validation.
 -   Inbox behavior.
--   Favorites and archive state.
+-   Favorites and archive state in the API model; frontend controls remain.
 
-### Milestone 4 --- Collections and tags
+### Milestone 4 --- Collections and tags (next)
 
 -   Collection CRUD.
 -   Tag creation and assignment.
@@ -433,15 +415,15 @@ Before finishing a task, report:
 -   Pagination.
 -   Search tests.
 
-### Milestone 6 --- Frontend experience
+### Milestone 6 --- Frontend experience (in progress)
 
 -   App shell and navigation.
 -   Dashboard.
 -   Resource list/detail/editor.
 -   Quick capture.
--   Global search.
+-   Global search (planned).
 
-### Milestone 7 --- Polish and deployment
+### Milestone 7 --- Polish and deployment (later)
 
 -   Integration tests.
 -   Accessibility and responsive behavior.
@@ -452,7 +434,7 @@ Before finishing a task, report:
 
 -   Attachments and document text extraction.
 -   Link checking and other predefined automations.
--   Browser extension.
+-   Browser-extension integration and authentication.
 -   Semantic search if justified by real usage.
 
 ## 14. Initial prompt for a new AI coding agent
@@ -470,16 +452,16 @@ Use this prompt when starting a new Codex or other agent session:
 > means Inbox), many-to-many tags, multi-user ownership, and PostgreSQL
 > full-text search.
 >
-> The proposed stack is React + TypeScript + Vite, Tailwind CSS,
-> FastAPI, Pydantic, SQLAlchemy 2.x, Alembic, and Neon PostgreSQL in
-> Singapore. Treat this as the working plan, but note that the user has
-> not explicitly confirmed every stack choice. Do not substitute
-> technologies without asking.
+> The current stack is React + TypeScript + Vite, Tailwind CSS, FastAPI,
+> Pydantic, SQLAlchemy 2.x, Alembic, and PostgreSQL. The backend also uses a
+> Cloudflare Worker for link previews. Do not substitute technologies or add
+> paid infrastructure without asking.
 >
 > Work only on the milestone or task the user requests. Before making
 > changes, summarize the current repository state and propose a small
 > implementation plan. Keep changes incremental, test them, and report
 > exactly what was changed and which checks were run. Do not add paid
-> services, unnecessary infrastructure, AI features, browser extensions,
-> file uploads, or a generic automation engine to the MVP without
-> explicit approval.
+> services, unnecessary infrastructure, AI features, file uploads, or a
+> generic automation engine to the MVP without explicit approval. The existing
+> browser-extension directory is an early scaffold; extend it only when the
+> user requests extension integration.
