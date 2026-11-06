@@ -1,11 +1,12 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Cookie, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from recall_backend.api.dependencies import get_current_user
 from recall_backend.core.config import settings
+from recall_backend.core.security import validate_request_origin
 from recall_backend.db.session import get_db_session
 from recall_backend.models.user import User
 from recall_backend.schemas.auth import (
@@ -48,7 +49,8 @@ def credentials_error() -> HTTPException:
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest, response: Response, session: SessionDependency) -> TokenResponse:
+async def register(request:Request, payload: RegisterRequest, response: Response, session: SessionDependency) -> TokenResponse:
+    validate_request_origin(request)
     email = normalize_email(str(payload.email))
     existing_user = await session.scalar(select(User.id).where(User.email == email))
     if existing_user is not None:
@@ -65,7 +67,8 @@ async def register(payload: RegisterRequest, response: Response, session: Sessio
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, response: Response, session: SessionDependency) -> TokenResponse:
+async def login(request:Request,payload: LoginRequest, response: Response, session: SessionDependency) -> TokenResponse:
+    validate_request_origin(request)
     email = normalize_email(str(payload.email))
     user = await session.scalar(select(User).where(User.email == email))
     if user is None or not verify_password(payload.password, user.password_hash):
@@ -80,10 +83,12 @@ async def login(payload: LoginRequest, response: Response, session: SessionDepen
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh(
+    request: Request,
     response: Response,
     session: SessionDependency,
     refresh_token: Annotated[str | None, Cookie(alias=settings.refresh_cookie_name)] = None,
 ) -> TokenResponse:
+    validate_request_origin(request)
     if refresh_token is None:
         raise credentials_error()
 
@@ -100,10 +105,12 @@ async def refresh(
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
 async def logout(
+    request:Request,
     response: Response,
     session: SessionDependency,
     refresh_token: Annotated[str | None, Cookie(alias=settings.refresh_cookie_name)] = None,
 ) -> Response:
+    validate_request_origin(request)
     if refresh_token is not None:
         await revoke_refresh_token(session, refresh_token)
         await session.commit()

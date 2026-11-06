@@ -76,8 +76,13 @@ async def create_refresh_token(session: AsyncSession, user: User) -> str:
     return raw_token
 
 
-async def rotate_refresh_token(session: AsyncSession, raw_token: str) -> tuple[User, str] | None:
+
+async def rotate_refresh_token(
+    session: AsyncSession,
+    raw_token: str,
+) -> tuple[User, str] | None:
     now = datetime.now(UTC)
+
     token = await session.scalar(
         select(RefreshToken)
         .options(joinedload(RefreshToken.user))
@@ -86,13 +91,18 @@ async def rotate_refresh_token(session: AsyncSession, raw_token: str) -> tuple[U
             RefreshToken.revoked_at.is_(None),
             RefreshToken.expires_at > now,
         )
+        .with_for_update()
     )
+
     if token is None:
         return None
 
     token.revoked_at = now
+
     replacement = await create_refresh_token(session, token.user)
+
     return token.user, replacement
+
 
 
 async def revoke_refresh_token(session: AsyncSession, raw_token: str) -> None:

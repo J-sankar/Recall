@@ -94,7 +94,7 @@ async def get_resources(
     resources = await session.scalars(
         select(Resource)
         .where(*filters)
-        .order_by(Resource.created_at.desc())
+        .order_by(Resource.created_at.desc(),Resource.id.desc())
         .limit(limit)
         .offset(skip)
     )
